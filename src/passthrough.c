@@ -4,22 +4,30 @@
 // For TinyUSB roothub port0 is native usb controller, roothub port1 is
 // pico-pio-usb.
 
-#include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
-
-#include "bsp/board_api.h"
-#include "tusb.h"
+#include <stdlib.h>
+#include "pico/stdio/driver.h"
 #include "pico/stdlib.h"
+#include "tusb.h"
+#include "bsp/board_api.h"
+
+#include "pico/stdio.h"
 #include "pico/multicore.h"
 #include "pio_usb.h"
 #include "hardware/clocks.h"
 #include "device_callbacks.h"
 #include "host_callbacks.h"
-
+#include "stdio_usb.h"
 #define LANGUAGE_ID 0x0409
 
 
+/*stdio_driver_t stdio_driver = {
+  .crlf_enabled = false,
+  .in_chars = stdio_usb_in_chars,
+  .out_chars = stdio_usb_out_chars,
+  .out_flush = stdio_usb_out_flush,
+  .set_chars_available_callback = stdio_set_chars_available_callback
+};*/
 // Buffer to hold the fetched device descriptor
 #define DESC_BUF_SIZE 256
 uint8_t g_dev_desc_buf[DESC_BUF_SIZE];
@@ -46,27 +54,12 @@ void led_blinking_task(void);
 void cdc_task(void);
 void print_device_info(uint8_t daddr, const tusb_desc_device_t* desc_device);
 
-#define cdc_printf(...)                                           \
-  do {                                                            \
-    char _tempbuf[256];                                           \
-    char* _bufptr = _tempbuf;                                     \
-    uint32_t count = (uint32_t) sprintf(_tempbuf, __VA_ARGS__);   \
-    while (count > 0) {                                           \
-        uint32_t wr_count = tud_cdc_write(_bufptr, count);        \
-        count -= wr_count;                                        \
-        _bufptr += wr_count;                                      \
-        if (count > 0){                                           \
-          tud_task();                                             \
-          tud_cdc_write_flush();                                  \
-        }                                                         \
-    }                                                             \
-  } while(0)
-// core1: handle host events
 int main(void) {
+ 
   set_sys_clock_khz(120000, true);
   board_init();
 
-  printf("TinyUSB Host Information -> Device CDC Example\r\n");
+ // printf("TinyUSB Host Information -> Device CDC Example\r\n");
 
   // init device and host stack on configured roothub port
   tusb_rhport_init_t dev_init = {
@@ -89,8 +82,9 @@ int main(void) {
   if (board_init_after_tusb) {
         board_init_after_tusb();
     }
-    stdio_init_all();
-
+   //stdio_set_driver_enabled(&stdio_driver, true);
+   //stdio_filter_driver(&stdio_driver);
+   stdio_usb_init();
   while (1) {
     tud_task(); // tinyusb device task
     tuh_task(); // tinyusb host task

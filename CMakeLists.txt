@@ -33,10 +33,6 @@ project(passthrough C CXX ASM)
 # Initialise the Raspberry Pi Pico SDK
 pico_sdk_init()
 
-# Make the Pico-PIO-USB library available
-# add_subdirectory(lib/Pico-PIO-USB)
-
-
 
 
 add_executable(passthrough src/passthrough.c src/usb_descriptors.c )
@@ -45,6 +41,7 @@ target_sources(passthrough PRIVATE
     src/device_callbacks.c
     src/host_callbacks.c
     src/usb_descriptors.c
+    src/drivers/stdio_usb.c
     ${PICO_TINYUSB_PATH}/src/portable/raspberrypi/pio_usb/dcd_pio_usb.c
     ${PICO_TINYUSB_PATH}/src/portable/raspberrypi/pio_usb/hcd_pio_usb.c
     )
@@ -60,11 +57,14 @@ target_link_libraries(passthrough
         tinyusb_host
         tinyusb_board
         pico_stdlib
+        pico_stdio
         )
 
 # Add the standard include files to the build
 target_include_directories(passthrough PRIVATE
-        ${CMAKE_CURRENT_LIST_DIR}/src
+        ${CMAKE_CURRENT_LIST_DIR}/src/include
+        ${PICO_SDK_PATH}/src/rp2_common/pico_stdio_usb/include
+        
 )
 
 # Add any user requested libraries
@@ -73,4 +73,4 @@ target_link_libraries(passthrough
         )
 
 pico_add_extra_outputs(passthrough)
-pico_enable_stdio_usb(passthrough 1)
+add_definitions(-DPICO_STDIO_USB_CONNECTION_WITHOUT_DTR=1)
