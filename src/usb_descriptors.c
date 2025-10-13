@@ -25,18 +25,12 @@
 
 #include "bsp/board_api.h"
 #include "tusb.h"
+#include "xinput_device.h"
+/* A combination of interfaces must have a unique product id, since PC will save device driver after the first plug. */
+/* This is a composite device with 2x CDC and 1x XInput. */
 
-/* A combination of interfaces must have a unique product id, since PC will save device driver after the first plug.
- * Same VID/PID with different interface e.g MSC (first), then CDC (later) will possibly cause system error on PC.
- *
- * Auto ProductID layout's Bitmap:
- *   [MSB]         HID | MSC | CDC          [LSB]
- */
-#define _PID_MAP(itf, n)  ( (CFG_TUD_##itf) << (n) )
-#define USB_PID           (0x4000 | _PID_MAP(CDC, 0) | _PID_MAP(MSC, 1) | _PID_MAP(HID, 2) | \
-                           _PID_MAP(MIDI, 3) | _PID_MAP(VENDOR, 4) )
-
-#define USB_VID   0xCafe
+#define USB_VID   0x045E
+#define USB_PID   0x4005 // 2x CDC + 1x Vendor/XInput
 #define USB_BCD   0x0200
 
 //--------------------------------------------------------------------+
@@ -47,8 +41,8 @@ tusb_desc_device_t const desc_device = {
     .bDescriptorType    = TUSB_DESC_DEVICE,
     .bcdUSB             = USB_BCD,
 
-    // Use Interface Association Descriptor (IAD) for CDC
-    // As required by USB Specs IAD's subclass must be common class (2) and protocol must be IAD (1)
+    // This is a composite device. The class code is set to MISC with IAD protocol
+    // as required by the USB specification for devices with multiple interfaces.
     .bDeviceClass       = TUSB_CLASS_MISC,
     .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
     .bDeviceProtocol    = MISC_PROTOCOL_IAD,
@@ -77,15 +71,16 @@ uint8_t const* tud_descriptor_device_cb(void) {
 //--------------------------------------------------------------------+
 
 enum {
-    ITF_NUM_CDC_0 = 0,
-    ITF_NUM_CDC_0_DATA,
-    ITF_NUM_CDC_1,
+    ITF_NUM_CDC_0 = 0,      // Interface 0 (CDC0 Comm)
+    ITF_NUM_CDC_0_DATA,     // Interface 1 (CDC0 Data)
+    ITF_NUM_CDC_1,          // Interface 2 (CDC1 Comm)
     ITF_NUM_CDC_1_DATA,
-    ITF_NUM_TOTAL
+    ITF_NUM_XINPUT,
+    ITF_NUM_TOTAL,
 };
 
 // total length of configuration descriptor
-#define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + CFG_TUD_CDC * TUD_CDC_DESC_LEN)
+#define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + CFG_TUD_CDC * TUD_CDC_DESC_LEN + TUD_XINPUT_DESC_LEN)
 
 // define endpoint numbers
 #define EPNUM_CDC_0_NOTIF   0x81 // notification endpoint for CDC 0
@@ -96,17 +91,21 @@ enum {
 #define EPNUM_CDC_1_OUT     0x05 // out endpoint for CDC 1
 #define EPNUM_CDC_1_IN      0x85 // in endpoint for CDC 1
 
+#define EPNUM_XINPUT_OUT    0x07   // out endpoint for XINPUT
+#define EPNUM_XINPUT_IN     0x87   // in endpoint for XINPUT
+
 
 
 // full speed configuration
 uint8_t const desc_fs_configuration[] = {
     // Config number, interface count, string index, total length, attribute, power in mA
-    TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0x00, 100),
-
+    TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0x00, 500),
+    TUD_XINPUT_DESCRIPTOR(ITF_NUM_XINPUT, 4, EPNUM_XINPUT_OUT, EPNUM_XINPUT_IN, 32),
     // Interface number, string index, EP notification address and size, EP data address (out, in) and size.
     TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_0, 4, EPNUM_CDC_0_NOTIF, 8, EPNUM_CDC_0_OUT, EPNUM_CDC_0_IN, 64),
-    TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_1, 4, EPNUM_CDC_1_NOTIF, 8, EPNUM_CDC_1_OUT, EPNUM_CDC_1_IN, 64),
-
+     TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_1, 4, EPNUM_CDC_1_NOTIF, 8, EPNUM_CDC_1_OUT, EPNUM_CDC_1_IN, 64),
+    
+   
 };
 
 #if TUD_OPT_HIGH_SPEED
@@ -196,10 +195,10 @@ enum {
 // array of pointer to string descriptors
 char const* string_desc_arr[] = {
     (const char[]) {0x09, 0x04}, // 0: is supported language is English (0x0409)
-    "TinyUSB",                     // 1: Manufacturer
-    "TinyUSB Device",              // 2: Product
+    "Tak",                     // 1: Manufacturer
+    "Tak's Device",              // 2: Product
     NULL,                          // 3: Serials will use unique ID if possible
-    "TinyUSB CDC",                 // 4: CDC Interface
+    "Xbox 360 Controller",                 // 4: CDC Interface
 };
 
 static uint16_t _desc_str[32 + 1];

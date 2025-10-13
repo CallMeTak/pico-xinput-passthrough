@@ -136,6 +136,8 @@
 #define CFG_TUH_HID_EPOUT_BUFSIZE   64
 #define CFG_TUH_HID 0
 #define CFG_TUH_HUB                 1
+#define CFG_TUH_XINPUT              1
+#define CFG_TUD_XINPUT
 // max device support (excluding hub device)
 #define CFG_TUH_DEVICE_MAX          (CFG_TUH_HUB ? 4 : 1) // hub typically has 4 ports
 

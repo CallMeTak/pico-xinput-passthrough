@@ -42,14 +42,16 @@ target_sources(passthrough PRIVATE
     src/host_callbacks.c
     src/usb_descriptors.c
     src/drivers/stdio_usb.c
+    src/drivers/xinput_device/xinput_device.c
     ${PICO_TINYUSB_PATH}/src/portable/raspberrypi/pio_usb/dcd_pio_usb.c
     ${PICO_TINYUSB_PATH}/src/portable/raspberrypi/pio_usb/hcd_pio_usb.c
     )
-target_compile_definitions(passthrough PRIVATE PIO_USB_USE_TINYUSB)
+#target_compile_definitions(passthrough PRIVATE CFG_TUSB_DEBUG=1)
 target_compile_options(passthrough PRIVATE -Wall -Wextra)
 pico_set_program_name(passthrough "passthrough")
 pico_set_program_version(passthrough "0.1")
 add_subdirectory(lib/Pico-PIO-USB)
+add_subdirectory(lib/tusb_xinput)
 # Add the standard library to the build
 target_link_libraries(passthrough
         pico_pio_usb
@@ -58,6 +60,7 @@ target_link_libraries(passthrough
         tinyusb_board
         pico_stdlib
         pico_stdio
+        xinput_host
         )
 
 # Add the standard include files to the build
