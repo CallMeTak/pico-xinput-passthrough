@@ -101,6 +101,13 @@ void tud_xinput_update()
 {
     tud_xinput_send_report(&xinputd_itf.gamepad_report);
 }
+bool tud_xinput_send_state(xinput_state_t *state){
+    // Copy state into the local gamepad_report buffer
+    TU_VERIFY_STATIC(sizeof(xinput_state_t) == sizeof(xinput_report_t) - 8, "REPORT STATE WRONG SIZE");
+    memcpy(&xinputd_itf.gamepad_report + 2, state, sizeof(xinput_state_t));
+    return true;
+    //return tud_xinput_send_report(&xinputd_itf.gamepad_report);
+}
 void tud_xinput_init_cb(void)
 {
     // Reset the interface state
@@ -124,7 +131,7 @@ bool tud_xinput_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, u
 {
     (void)result;
     (void)xferred_bytes;
-
+    return true;
     // IN transfer completed, release the endpoint
     if (ep_addr == xinputd_itf.ep_in)
     {
@@ -147,14 +154,82 @@ usbd_class_driver_t const usbd_xinput_driver =
         .reset = tud_xinput_reset_cb,
         .sof = NULL,
 };
+
 //usbd_class_driver_t const *usbd_app_driver_get_cb(uint8_t *driver_count)
 //{
- //   *driver_count = 1;
-  //  return &usbd_xinput_driver;
+//    *driver_count = 1;
+//    return &usbd_xinput_driver;
 //}
-usbd_class_driver_t const *usbd_app_driver_get_cb(uint8_t *driver_count)
+
+const uint8_t tud_xinput_report_desc[] = {
+    0x05, 0x01,        // Usage Page (Generic Desktop Ctrls)
+    0x09, 0x05,        // Usage (Game Pad)
+    0xA1, 0x01,        // Collection (Application)
+    0x85, 0x03,        //   Report ID (3)
+    0x05, 0x01,        //   Usage Page (Generic Desktop Ctrls)
+    0x09, 0x30,        //   Usage (X)
+    0x09, 0x31,        //   Usage (Y)
+    0x09, 0x32,        //   Usage (Z)
+    0x09, 0x35,        //   Usage (Rz)
+    0x15, 0x00,        //   Logical Minimum (0)
+    0x27, 0xFF, 0xFF, 0x00, 0x00,  //   Logical Maximum (65535)
+    0x75, 0x10,        //   Report Size (16)
+    0x95, 0x04,        //   Report Count (4)
+    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x05, 0x09,        //   Usage Page (Button)
+    0x19, 0x01,        //   Usage Minimum (0x01)
+    0x29, 0x10,        //   Usage Maximum (0x10)
+    0x15, 0x00,        //   Logical Minimum (0)
+    0x25, 0x01,        //   Logical Maximum (1)
+    0x75, 0x01,        //   Report Size (1)
+    0x95, 0x10,        //   Report Count (16)
+    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x05, 0x01,        //   Usage Page (Generic Desktop Ctrls)
+    0x09, 0x39,        //   Usage (Hat switch)
+    0x15, 0x01,        //   Logical Minimum (1)
+    0x25, 0x08,        //   Logical Maximum (8)
+    0x35, 0x00,        //   Physical Minimum (0)
+    0x46, 0x3B, 0x01,  //   Physical Maximum (315)
+    0x65, 0x14,        //   Unit (System: English Rotation, Length: Centimeter)
+    0x75, 0x04,        //   Report Size (4)
+    0x95, 0x01,        //   Report Count (1)
+    0x81, 0x42,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,Null State)
+    0x05, 0x01,        //   Usage Page (Generic Desktop Ctrls)
+    0x09, 0x33,        //   Usage (Rx)
+    0x09, 0x34,        //   Usage (Ry)
+    0x15, 0x00,        //   Logical Minimum (0)
+    0x27, 0xFF, 0xFF, 0x00, 0x00,  //   Logical Maximum (65535)
+    0x75, 0x10,        //   Report Size (16)
+    0x95, 0x02,        //   Report Count (2)
+    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x85, 0x04,        //   Report ID (4)
+    0x06, 0x00, 0xFF,  //   Usage Page (Vendor Defined 0xFF00)
+    0x09, 0x20,        //   Usage (0x20)
+    0x09, 0x21,        //   Usage (0x21)
+    0x09, 0x22,        //   Usage (0x22)
+    0x09, 0x23,        //   Usage (0x23)
+    0x09, 0x24,        //   Usage (0x24)
+    0x09, 0x25,        //   Usage (0x25)
+    0x09, 0x26,        //   Usage (0x26)
+    0x09, 0x27,        //   Usage (0x27)
+    0x15, 0x00,        //   Logical Minimum (0)
+    0x26, 0xFF, 0x00,  //   Logical Maximum (255)
+    0x75, 0x08,        //   Report Size (8)
+    0x95, 0x08,        //   Report Count (8)
+    0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
+    0xC0,              // End Collection
+};
+
+uint8_t const * tud_hid_report_descriptor_cb(uint8_t itf)
 {
-    *driver_count = 1;
-    return &usbd_xinput_driver;
+  (void) itf;
+  // This must return a pointer to your XInput report descriptor array.
+  // The name of the array might be different, but it's the one
+  // whose size is 114 bytes.
+  return tud_xinput_report_desc;
 }
+// This is a community-standard HID report descriptor for an XInput-compatible device.
+// It describes all the axes, buttons, and triggers in a format that the xusb22.sys
+// driver can understand. The total length is 114 bytes.
+
 #endif

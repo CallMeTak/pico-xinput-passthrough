@@ -67,7 +67,7 @@ void tud_xinput_joystick_ry(uint16_t value);
 void tud_xinput_update();
 bool tud_xinput_send_report(xinput_report_t *report);
 
-
+bool tud_xinput_send_state(xinput_state_t *state);
 /*static const uint8_t xinput_configuration_descriptor[] =
 {
 	0x09,        // bLength
@@ -121,7 +121,7 @@ bool tud_xinput_send_report(xinput_report_t *report);
     /* Interface */\
     0x09, TUSB_DESC_INTERFACE, _itfnum, 0, 2, TUD_XINPUT_CLASS, TUD_XINPUT_SUBCLASS, TUD_XINPUT_PROTOCOL, _stridx,\
     /* Unknown HID */\
-    0x10, 0x21, 0x10, 0x01, 0x01, 0x24, 0x81, 0x14, 0x03, 0x00, 0x03, 0x13, 0x02, 0x00, 0x03, 0x00,\
+    0x10, 0x21, 0x10, 0x01, 0x01, 0x24, 0x82, 0x14, 0x03, 0x00, 0x03, 0x13, 0x02, 0x00, 0x03, 0x00,\
     /* Endpoint In */\
     7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_epsize), 1,\
     /* Endpoint Out */\

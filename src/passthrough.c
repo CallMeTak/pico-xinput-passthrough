@@ -53,12 +53,12 @@ int main(void)
   {
     board_init_after_tusb();
   }
- // stdio_usb_init();
+ stdio_init_all();
   while (1)
   {
     tud_task();
     tuh_task();
-   // xusbd_task();
+  //  xusbd_task();
 
     led_blinking_task();
   }
@@ -119,6 +119,9 @@ void tuh_xinput_report_received_cb(uint8_t dev_addr, uint8_t instance, xinputh_i
     }
     if (xid_itf->connected && xid_itf->new_pad_data)
     {
+      tud_xinput_send_state((xinput_state_t*)&p);
+      tud_xinput_update();
+
      // TU_LOG1("[%02x, %02x], Type: %s, Buttons %04x, LT: %02x RT: %02x, LX: %d, LY: %d, RX: %d, RY: %d\n",
           //    dev_addr, instance, type_str, p->wButtons, p->bLeftTrigger, p->bRightTrigger, p->sThumbLX, p->sThumbLY, p->sThumbRX, p->sThumbRY);
 
