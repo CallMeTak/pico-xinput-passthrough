@@ -46,7 +46,7 @@ target_sources(passthrough PRIVATE
     ${PICO_TINYUSB_PATH}/src/portable/raspberrypi/pio_usb/dcd_pio_usb.c
     ${PICO_TINYUSB_PATH}/src/portable/raspberrypi/pio_usb/hcd_pio_usb.c
     )
-#target_compile_definitions(passthrough PRIVATE CFG_TUSB_DEBUG=1)
+target_compile_definitions(passthrough PRIVATE CFG_TUSB_DEBUG=1)
 target_compile_options(passthrough PRIVATE -Wall -Wextra)
 pico_set_program_name(passthrough "passthrough")
 pico_set_program_version(passthrough "0.1")
@@ -76,4 +76,4 @@ target_link_libraries(passthrough
         )
 
 pico_add_extra_outputs(passthrough)
-add_definitions(-DPICO_STDIO_USB_CONNECTION_WITHOUT_DTR=1)
+#add_definitions(-DPICO_STDIO_USB_CONNECTION_WITHOUT_DTR=1)

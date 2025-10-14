@@ -4,23 +4,47 @@
 // For TinyUSB roothub port0 is native usb controller, roothub port1 is
 // pico-pio-usb.
 
+// Standard library headers
 #include <string.h>
 #include <stdlib.h>
-#include "pico/stdio/driver.h"
+
+// Pico SDK headers
 #include "pico/stdlib.h"
+#include "pico/stdio.h"
+#include "pico/stdio/driver.h"
+#include "pico/multicore.h"
+
+// TinyUSB and board headers
 #include "tusb.h"
 #include "bsp/board_api.h"
 
-#include "pico/stdio.h"
-#include "pico/multicore.h"
-#include "pio_usb.h"
+// Hardware-specific headers
 #include "hardware/clocks.h"
+#include "pio_usb.h"
+
+// Project-specific headers
 #include "device_callbacks.h"
 #include "host_callbacks.h"
 #include "stdio_usb.h"
 #include "xinput_host.h"
 #include "xinput_device.h"
 #include "host/usbh.h"
+#include "device/usbd_pvt.h"
+
+// Safe conversion from xinput_gamepad_t to xinput_state_t
+xinput_state_t xinput_gamepad_to_state(const xinput_gamepad_t *pad) {
+  xinput_state_t state;
+  state.bmButtons = pad->wButtons;
+  state.bLeftTrigger = pad->bLeftTrigger;
+  state.bRightTrigger = pad->bRightTrigger;
+  state.wThumbLeftX = (uint16_t)pad->sThumbLX;
+  state.wThumbLeftY = (uint16_t)pad->sThumbLY;
+  state.wThumbRightX = (uint16_t)pad->sThumbRX;
+  state.wThumbRightY = (uint16_t)pad->sThumbRY;
+  return state;
+}
+
+extern usbd_class_driver_t const usbd_xinput_driver; // Add this line to declare the driver
 uint32_t blink_interval_ms = 250;
 
 void led_blinking_task(void);
@@ -53,12 +77,16 @@ int main(void)
   {
     board_init_after_tusb();
   }
- stdio_init_all();
+
+ if (!stdio_usb_init()){
+    tud_cdc_write_str("stdio usb init failed\r\n");
+    tud_cdc_write_flush();
+ };
   while (1)
   {
     tud_task();
     tuh_task();
-  //  xusbd_task();
+    xusbd_task();
 
     led_blinking_task();
   }
@@ -90,14 +118,16 @@ usbh_class_driver_t const *usbh_app_driver_get_cb(uint8_t *driver_count)
   *driver_count = 1;
   return &usbh_xinput_driver;
 }
-
+usbd_class_driver_t const *usbd_app_driver_get_cb(uint8_t *driver_count)
+{
+    *driver_count = 1;
+    return &usbd_xinput_driver;
+}
 void tuh_xinput_report_received_cb(uint8_t dev_addr, uint8_t instance, xinputh_interface_t const *xid_itf, uint16_t len)
 {
   (void)len; // unused
   const xinput_gamepad_t *p = &xid_itf->pad;
   const char *type_str;
-  printf("report received callback\r\n");
-  printf("last xfer result: %d\r\n", xid_itf->last_xfer_result);
   if (xid_itf->last_xfer_result == XFER_RESULT_SUCCESS)
   {
     switch (xid_itf->type)
@@ -119,15 +149,20 @@ void tuh_xinput_report_received_cb(uint8_t dev_addr, uint8_t instance, xinputh_i
     }
     if (xid_itf->connected && xid_itf->new_pad_data)
     {
-      tud_xinput_send_state((xinput_state_t*)&p);
-      tud_xinput_update();
+     TU_LOG1("[%02x, %02x], Type: %s, Buttons %04x, LT: %02x RT: %02x, LX: %d, LY: %d, RX: %d, RY: %d\n",
+              dev_addr, instance, type_str, p->wButtons, p->bLeftTrigger, p->bRightTrigger, p->sThumbLX, p->sThumbLY, p->sThumbRX, p->sThumbRY);
+      xinput_state_t test = xinput_gamepad_to_state(p);
+      tud_xinput_send_state(&test);
 
-     // TU_LOG1("[%02x, %02x], Type: %s, Buttons %04x, LT: %02x RT: %02x, LX: %d, LY: %d, RX: %d, RY: %d\n",
-          //    dev_addr, instance, type_str, p->wButtons, p->bLeftTrigger, p->bRightTrigger, p->sThumbLX, p->sThumbLY, p->sThumbRX, p->sThumbRY);
-
+      TU_LOG1("Converted Input: Buttons %04x, LT: %02x RT: %02x, LX: %d, LY: %d, RX: %d, RY: %d\n",
+        test.bmButtons, test.bLeftTrigger, test.bRightTrigger, test.wThumbLeftX, test.wThumbLeftY, test.wThumbRightX, test.wThumbRightY);
       // How to check specific buttons
       if (p->wButtons & XINPUT_GAMEPAD_A){
         TU_LOG1("You are pressing A\n");
+        tud_xinput_press_button(BUTTON_A);
+      }
+      else {
+        tud_xinput_release_button(BUTTON_A);
       }
     }
   }
@@ -147,7 +182,6 @@ void tuh_xinput_mount_cb(uint8_t dev_addr, uint8_t instance, const xinputh_inter
   tuh_xinput_set_led(dev_addr, instance, 0, true);
   tuh_xinput_set_led(dev_addr, instance, 1, true);
   tuh_xinput_set_rumble(dev_addr, instance, 0, 0, true);
-  printf("receive report 2 success: %d\r\n", tuh_xinput_receive_report(dev_addr, instance));
   tuh_xinput_receive_report(dev_addr, instance);
 }
 
@@ -161,7 +195,7 @@ void xusbd_task()
   static uint32_t last_run_time = 0;
   if (current_time - last_run_time >= 1)
   {
-    tud_xinput_press_button(BUTTON_A);
+  //  tud_xinput_press_button(BUTTON_A);
     tud_xinput_update();
     last_run_time = current_time;
   }

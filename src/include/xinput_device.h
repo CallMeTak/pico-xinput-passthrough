@@ -68,6 +68,8 @@ void tud_xinput_update();
 bool tud_xinput_send_report(xinput_report_t *report);
 
 bool tud_xinput_send_state(xinput_state_t *state);
+
+
 /*static const uint8_t xinput_configuration_descriptor[] =
 {
 	0x09,        // bLength

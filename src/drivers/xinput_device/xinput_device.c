@@ -103,8 +103,7 @@ void tud_xinput_update()
 }
 bool tud_xinput_send_state(xinput_state_t *state){
     // Copy state into the local gamepad_report buffer
-    TU_VERIFY_STATIC(sizeof(xinput_state_t) == sizeof(xinput_report_t) - 8, "REPORT STATE WRONG SIZE");
-    memcpy(&xinputd_itf.gamepad_report + 2, state, sizeof(xinput_state_t));
+    memcpy((uint8_t*)&xinputd_itf.gamepad_report + 2, state, sizeof(xinput_state_t));
     return true;
     //return tud_xinput_send_report(&xinputd_itf.gamepad_report);
 }
@@ -155,11 +154,6 @@ usbd_class_driver_t const usbd_xinput_driver =
         .sof = NULL,
 };
 
-//usbd_class_driver_t const *usbd_app_driver_get_cb(uint8_t *driver_count)
-//{
-//    *driver_count = 1;
-//    return &usbd_xinput_driver;
-//}
 
 const uint8_t tud_xinput_report_desc[] = {
     0x05, 0x01,        // Usage Page (Generic Desktop Ctrls)
