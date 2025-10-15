@@ -1,27 +1,3 @@
-/*
- * The MIT License (MIT)
- *
- * Copyright (c) 2019 Ha Thach (tinyusb.org)
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
- *
- */
 
 #include "bsp/board_api.h"
 #include "tusb.h"
@@ -44,16 +20,16 @@ tusb_desc_device_t const desc_device = {
     .bDescriptorType = TUSB_DESC_DEVICE,
     .bcdUSB = USB_BCD,
 
-    // This is a composite device. The class code is set to MISC with IAD protocol
+    // This is a composite device. Class and subclass codes are set to 0
     // as required by the USB specification for devices with multiple interfaces.
-    .bDeviceClass = 0x0,
-    .bDeviceSubClass = 0x0,
+    .bDeviceClass = TUSB_CLASS_UNSPECIFIED,
+    .bDeviceSubClass = TUSB_CLASS_UNSPECIFIED,
     .bDeviceProtocol = 0x0,
     .bMaxPacketSize0 = CFG_TUD_ENDPOINT0_SIZE,
 
     .idVendor = USB_VID,
     .idProduct = USB_PID,
-    .bcdDevice = 0x0100,
+    .bcdDevice = USB_BCD,
 
     .iManufacturer = 0x01,
     .iProduct = 0x02,
@@ -99,6 +75,9 @@ enum
 #define EPNUM_XINPUT_OUT 0x02 // out endpoint for XINPUT
 #define EPNUM_XINPUT_IN 0x82  // in endpoint for XINPUT
 
+#define EPNUM_HID_GAMEPAD_IN 0x8F // in endpoint for HID gamepad
+#define EPNUM_HID_GAMEPAD_OUT 0x0F
+
 // full speed configuration
 uint8_t const desc_fs_configuration[] = {
     // Config number, interface count, string index, total length, attribute, power in mA
@@ -123,6 +102,9 @@ uint8_t const *tud_descriptor_configuration_cb(uint8_t index)
 
 #define MS_OS_1_0_VENDOR_CODE 0x90
 
+// Microsoft OS 1.0 Extended Compat ID Feature Descriptor
+// https://learn.microsoft.com/en-us/windows-hardware/drivers/usbcon/microsoft-os-1-0-descriptors-specification
+// Required for XInput to work seamlessly on Windows
 static const uint8_t ms_os_ext_compat_id[40] = {
     // Header (16 bytes)
     0x28, 0x00, 0x00, 0x00,
@@ -134,18 +116,18 @@ static const uint8_t ms_os_ext_compat_id[40] = {
     // Function Section (24 bytes)
     0x04, // bFirstInterface = 4
     0x00, // reserved
-    'X', 'U', 'S', 'B', '2', '2', 0x00, 0x00,
+    'X', 'U', 'S', 'B', '1', '0', 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00};
-//--------------------------------------------------------------------+
-// E. TINYUSB VENDOR CALLBACK (for MS OS 2.0)
-//--------------------------------------------------------------------+
 
+//--------------------------------------------------------------------+
+// E. TINYUSB VENDOR CALLBACK (for MS OS 1.0)
+//--------------------------------------------------------------------+
 bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const *request)
 {
   if (stage != CONTROL_STAGE_SETUP)
     return true;
-  if (request->bmRequestType == 0xC0 && // Device-to-host, Vendor
+  if (request->bmRequestType == 0xC0 &&
       request->bRequest == MS_OS_1_0_VENDOR_CODE &&
       request->wIndex == 0x0004)
   {
@@ -171,10 +153,10 @@ enum
 char const *string_desc_arr[] = {
     (const char[]){0x09, 0x04}, // 0: is supported language is English (0x0409)
     "Tak",                      // 1: Manufacturer
-    "Tak's Device",             // 2: Product
+    "Tak's Pico Device",        // 2: Product
     NULL,                       // 3: Serials will use unique ID if possible
     "Tak's CDC Interface",      // 4: CDC Interface
-    "Tak's Roller",             // 5: HID Interface
+    "Tak's Controller",         // 5: HID Interface
     "MSFT100",
 };
 
@@ -198,6 +180,7 @@ uint16_t const *tud_descriptor_string_cb(uint8_t index, uint16_t langid)
     chr_count = board_usb_get_serial(_desc_str + 1, 32);
     break;
 
+  // Respond to Microsoft OS 1.0 string descriptor request
   case 0xEE:
     // UTF-16LE encode "MSFT100" + vendor code byte
     static uint16_t msft100_desc[9];

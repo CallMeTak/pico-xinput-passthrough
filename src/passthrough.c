@@ -30,32 +30,19 @@
 #include "xinput_device.h"
 #include "host/usbh.h"
 #include "device/usbd_pvt.h"
+#include "class/hid/hid.h"
 
-// Safe conversion from xinput_gamepad_t to xinput_state_t
-xinput_state_t xinput_gamepad_to_state(const xinput_gamepad_t *pad) {
-  xinput_state_t state;
-  state.bmButtons = pad->wButtons;
-  state.bLeftTrigger = pad->bLeftTrigger;
-  state.bRightTrigger = pad->bRightTrigger;
-  state.wThumbLeftX = (uint16_t)pad->sThumbLX;
-  state.wThumbLeftY = (uint16_t)pad->sThumbLY;
-  state.wThumbRightX = (uint16_t)pad->sThumbRX;
-  state.wThumbRightY = (uint16_t)pad->sThumbRY;
-  return state;
-}
-
-extern usbd_class_driver_t const usbd_xinput_driver; // Add this line to declare the driver
+extern usbd_class_driver_t const usbd_xinput_driver;
 uint32_t blink_interval_ms = 250;
 
 void led_blinking_task(void);
 void cdc_task(void);
 void xusbd_task();
-// void print_device_info(uint8_t daddr, const tusb_desc_device_t* desc_device);
 
 int main(void)
 {
 
-  set_sys_clock_khz(120000, true);
+  set_sys_clock_khz(240000, true);
   board_init();
 
   tusb_rhport_init_t dev_init = {
@@ -64,13 +51,14 @@ int main(void)
   tusb_init(BOARD_TUD_RHPORT, &dev_init);
 
   pio_usb_configuration_t pio_cfg = PIO_USB_DEFAULT_CONFIG;
+
+  // Reversed DP/DM for Pico board. Depends on your own board wiring
   pio_cfg.pinout = PIO_USB_PINOUT_DPDM;
   tuh_configure(BOARD_TUH_RHPORT, TUH_CFGID_RPI_PIO_USB_CONFIGURATION, &pio_cfg);
 
   tusb_rhport_init_t host_init = {
       .role = TUSB_ROLE_HOST,
       .speed = TUSB_SPEED_AUTO};
-  // Pass our custom config to the host stack
   tusb_init(BOARD_TUH_RHPORT, &host_init);
 
   if (board_init_after_tusb)
@@ -78,16 +66,18 @@ int main(void)
     board_init_after_tusb();
   }
 
- if (!stdio_usb_init()){
-    tud_cdc_write_str("stdio usb init failed\r\n");
-    tud_cdc_write_flush();
- };
+  stdio_usb_init();
+
+  // Main loop
   while (1)
   {
-    tud_task();
+    // Host task
     tuh_task();
-    xusbd_task();
 
+    // Device task
+    tud_task();
+
+    // led blink task
     led_blinking_task();
   }
 
@@ -113,6 +103,7 @@ void led_blinking_task(void)
   led_state = 1 - led_state; // toggle
 }
 
+// Application level callbacks to register class drivers
 usbh_class_driver_t const *usbh_app_driver_get_cb(uint8_t *driver_count)
 {
   *driver_count = 1;
@@ -120,9 +111,11 @@ usbh_class_driver_t const *usbh_app_driver_get_cb(uint8_t *driver_count)
 }
 usbd_class_driver_t const *usbd_app_driver_get_cb(uint8_t *driver_count)
 {
-    *driver_count = 1;
-    return &usbd_xinput_driver;
+  *driver_count = 1;
+  return &usbd_xinput_driver;
 }
+
+// Application callback invoked when XInput report is received
 void tuh_xinput_report_received_cb(uint8_t dev_addr, uint8_t instance, xinputh_interface_t const *xid_itf, uint16_t len)
 {
   (void)len; // unused
@@ -130,73 +123,35 @@ void tuh_xinput_report_received_cb(uint8_t dev_addr, uint8_t instance, xinputh_i
   const char *type_str;
   if (xid_itf->last_xfer_result == XFER_RESULT_SUCCESS)
   {
-    switch (xid_itf->type)
-    {
-    case 1:
-      type_str = "Xbox One";
-      break;
-    case 2:
-      type_str = "Xbox 360 Wireless";
-      break;
-    case 3:
-      type_str = "Xbox 360 Wired";
-      break;
-    case 4:
-      type_str = "Xbox OG";
-      break;
-    default:
-      type_str = "Unknown";
-    }
     if (xid_itf->connected && xid_itf->new_pad_data)
     {
-     TU_LOG1("[%02x, %02x], Type: %s, Buttons %04x, LT: %02x RT: %02x, LX: %d, LY: %d, RX: %d, RY: %d\n",
-              dev_addr, instance, type_str, p->wButtons, p->bLeftTrigger, p->bRightTrigger, p->sThumbLX, p->sThumbLY, p->sThumbRX, p->sThumbRY);
-      xinput_state_t test = xinput_gamepad_to_state(p);
-      tud_xinput_send_state(&test);
+      TU_LOG1("Original Buttons: Buttons %04x, LT: %02x RT: %02x, LX: %d, LY: %d, RX: %d, RY: %d\n",
+              p->wButtons, p->bLeftTrigger, p->bRightTrigger, p->sThumbLX, p->sThumbLY, p->sThumbRX, p->sThumbRY);
 
-      TU_LOG1("Converted Input: Buttons %04x, LT: %02x RT: %02x, LX: %d, LY: %d, RX: %d, RY: %d\n",
-        test.bmButtons, test.bLeftTrigger, test.bRightTrigger, test.wThumbLeftX, test.wThumbLeftY, test.wThumbRightX, test.wThumbRightY);
-      // How to check specific buttons
-      if (p->wButtons & XINPUT_GAMEPAD_A){
-        TU_LOG1("You are pressing A\n");
-        tud_xinput_press_button(BUTTON_A);
-      }
-      else {
-        tud_xinput_release_button(BUTTON_A);
-      }
+      // Create a report to send to the PC.
+      // The signed-to-unsigned axis conversion is now handled inside tud_xinput_report.
+      xinput_report_t report = {0};
+      report.bReportID = 0;
+      report.bSize = 0x14;
+      report.bmButtons = p->wButtons;
+      report.bLeftTrigger = p->bLeftTrigger;
+      report.bRightTrigger = p->bRightTrigger;
+      report.wThumbLeftX = p->sThumbLX;
+      report.wThumbLeftY = p->sThumbLY;
+      report.wThumbRightX = p->sThumbRX;
+      report.wThumbRightY = p->sThumbRY;
+
+      tud_xinput_report(&report);
     }
   }
   tuh_xinput_receive_report(dev_addr, instance);
 }
 
+// Application callback invoked when Xinput device is plugged in
 void tuh_xinput_mount_cb(uint8_t dev_addr, uint8_t instance, const xinputh_interface_t *xinput_itf)
 {
-  TU_LOG1("XINPUT MOUNTED %02x %d\n", dev_addr, instance);
-  // If this is a Xbox 360 Wireless controller we need to wait for a connection packet
-  // on the in pipe before setting LEDs etc. So just start getting data until a controller is connected.
-  if (xinput_itf->type == XBOX360_WIRELESS && xinput_itf->connected == false)
-  {
-    printf("receive report success: %d\r\n", tuh_xinput_receive_report(dev_addr, instance));
-    return;
-  }
   tuh_xinput_set_led(dev_addr, instance, 0, true);
   tuh_xinput_set_led(dev_addr, instance, 1, true);
   tuh_xinput_set_rumble(dev_addr, instance, 0, 0, true);
   tuh_xinput_receive_report(dev_addr, instance);
-}
-
-void tuh_xinput_umount_cb(uint8_t dev_addr, uint8_t instance)
-{
-  TU_LOG1("XINPUT UNMOUNTED %02x %d\n", dev_addr, instance);
-}
-void xusbd_task()
-{
-  uint32_t current_time = board_millis();
-  static uint32_t last_run_time = 0;
-  if (current_time - last_run_time >= 1)
-  {
-  //  tud_xinput_press_button(BUTTON_A);
-    tud_xinput_update();
-    last_run_time = current_time;
-  }
 }

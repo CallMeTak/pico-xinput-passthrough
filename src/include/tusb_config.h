@@ -110,8 +110,12 @@
 //------------- CLASS -------------//
 #define CFG_TUD_CDC              2
 #define CFG_TUD_BOS              1
-#define CFG_TUD_VENDOR      1
+#define CFG_TUD_VENDOR           1
+#define CFG_TUD_XINPUT
 
+#define CFG_TUD_HID_EPIN_BUFSIZE    64
+#define CFG_TUD_HID_EPOUT_BUFSIZE   64
+#define CFG_TUD_HID              0
 // CDC FIFO size of TX and RX
 #define CFG_TUD_CDC_RX_BUFSIZE   (TUD_OPT_HIGH_SPEED ? 512 : 64)
 #define CFG_TUD_CDC_TX_BUFSIZE   (TUD_OPT_HIGH_SPEED ? 512 : 64)
@@ -139,7 +143,6 @@
 #define CFG_TUH_HID 0
 #define CFG_TUH_HUB                 1
 #define CFG_TUH_XINPUT              1
-#define CFG_TUD_XINPUT
 // max device support (excluding hub device)
 #define CFG_TUH_DEVICE_MAX          (CFG_TUH_HUB ? 4 : 1) // hub typically has 4 ports
 
