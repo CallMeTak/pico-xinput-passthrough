@@ -41,8 +41,8 @@ target_sources(${PROJECT_NAME} PRIVATE
     src/device_callbacks.c
     src/host_callbacks.c
     src/usb_descriptors.c
-    src/drivers/stdio_usb.c
-    src/drivers/xinput_device/xinput_device.c
+    src/stdio_usb.c
+
     # Required for PICO-PIO-USB to work
     ${PICO_TINYUSB_PATH}/src/portable/raspberrypi/pio_usb/dcd_pio_usb.c
     ${PICO_TINYUSB_PATH}/src/portable/raspberrypi/pio_usb/hcd_pio_usb.c
@@ -61,13 +61,15 @@ pico_set_program_version(${PROJECT_NAME} "0.1")
 # For USB support via PIO
 add_subdirectory(lib/Pico-PIO-USB)
 
-# Required since tusb_xinput links against "tinyusb"
+# Required since tusb_xinput and tinyusb-xinput-device links against "tinyusb"
 add_library(tinyusb INTERFACE)
 target_link_libraries(tinyusb INTERFACE tinyusb_host tinyusb_board)
 
 # XInput host library
 add_subdirectory(lib/tusb_xinput)
 
+# XInput device library
+add_subdirectory(lib/tinyusb-xinput-device)
 # Add the standard library to the build
 target_link_libraries(${PROJECT_NAME}
         pico_stdlib
@@ -77,6 +79,8 @@ target_link_libraries(${PROJECT_NAME}
 # Add the standard include files to the build
 target_include_directories(${PROJECT_NAME} PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}/src/include
+
+        # Required for stdio over USB
         ${PICO_SDK_PATH}/src/rp2_common/pico_stdio_usb/include
         
 )
@@ -89,6 +93,7 @@ target_link_libraries(${PROJECT_NAME}
         tinyusb_board
         pico_pio_usb
         xinput_host
+        tud_xinput
         )
 
 # create map/bin/hex/uf2 file etc.
