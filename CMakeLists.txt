@@ -28,52 +28,68 @@ set(PICO_BOARD pico CACHE STRING "Board type")
 # Pull in Raspberry Pi Pico SDK (must be before project)
 include(pico_sdk_import.cmake)
 
-project(passthrough C CXX ASM)
+set(PROJECT_NAME passthrough)
+project(${PROJECT_NAME} C CXX ASM)
 
 # Initialise the Raspberry Pi Pico SDK
 pico_sdk_init()
 
 
-
-add_executable(passthrough src/passthrough.c src/usb_descriptors.c )
-target_sources(passthrough PRIVATE
+add_executable(${PROJECT_NAME})
+target_sources(${PROJECT_NAME} PRIVATE
     src/passthrough.c
     src/device_callbacks.c
     src/host_callbacks.c
     src/usb_descriptors.c
     src/drivers/stdio_usb.c
     src/drivers/xinput_device/xinput_device.c
+    # Required for PICO-PIO-USB to work
     ${PICO_TINYUSB_PATH}/src/portable/raspberrypi/pio_usb/dcd_pio_usb.c
     ${PICO_TINYUSB_PATH}/src/portable/raspberrypi/pio_usb/hcd_pio_usb.c
     )
-target_compile_definitions(passthrough PRIVATE CFG_TUSB_DEBUG=1)
-target_compile_options(passthrough PRIVATE -Wall -Wextra)
-pico_set_program_name(passthrough "passthrough")
-pico_set_program_version(passthrough "0.1")
+# Enables tinyusb debug output
+target_compile_definitions(${PROJECT_NAME} PUBLIC LOG=1)
+
+target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra)
+pico_set_program_name(${PROJECT_NAME} "${PROJECT_NAME}")
+pico_set_program_version(${PROJECT_NAME} "0.1")
+
+#========================================================
+# External Libraries
+#========================================================
+
+# For USB support via PIO
 add_subdirectory(lib/Pico-PIO-USB)
+
+# Required since tusb_xinput links against "tinyusb"
+add_library(tinyusb INTERFACE)
+target_link_libraries(tinyusb INTERFACE tinyusb_host tinyusb_board)
+
+# XInput host library
 add_subdirectory(lib/tusb_xinput)
+
 # Add the standard library to the build
-target_link_libraries(passthrough
-        pico_pio_usb
-        tinyusb_device
-        tinyusb_host
-        tinyusb_board
+target_link_libraries(${PROJECT_NAME}
         pico_stdlib
         pico_stdio
-        xinput_host
         )
 
 # Add the standard include files to the build
-target_include_directories(passthrough PRIVATE
+target_include_directories(${PROJECT_NAME} PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}/src/include
         ${PICO_SDK_PATH}/src/rp2_common/pico_stdio_usb/include
         
 )
 
 # Add any user requested libraries
-target_link_libraries(passthrough 
+target_link_libraries(${PROJECT_NAME}
         hardware_timer
+        tinyusb_device
+        tinyusb_host
+        tinyusb_board
+        pico_pio_usb
+        xinput_host
         )
 
-pico_add_extra_outputs(passthrough)
-#add_definitions(-DPICO_STDIO_USB_CONNECTION_WITHOUT_DTR=1)
+# create map/bin/hex/uf2 file etc.
+pico_add_extra_outputs(${PROJECT_NAME})

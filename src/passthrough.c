@@ -17,6 +17,9 @@
 // TinyUSB and board headers
 #include "tusb.h"
 #include "bsp/board_api.h"
+#include "host/usbh.h"
+#include "device/usbd_pvt.h"
+#include "class/hid/hid.h"
 
 // Hardware-specific headers
 #include "hardware/clocks.h"
@@ -25,12 +28,15 @@
 // Project-specific headers
 #include "device_callbacks.h"
 #include "host_callbacks.h"
+
+// Cannot use pico/stdio_usb.h along with tinyusb host mode
+// So we copy the file into our own project
+// https://forums.raspberrypi.com/viewtopic.php?t=355601
 #include "stdio_usb.h"
+
+
 #include "xinput_host.h"
 #include "xinput_device.h"
-#include "host/usbh.h"
-#include "device/usbd_pvt.h"
-#include "class/hid/hid.h"
 
 extern usbd_class_driver_t const usbd_xinput_driver;
 uint32_t blink_interval_ms = 250;
@@ -116,6 +122,7 @@ usbd_class_driver_t const *usbd_app_driver_get_cb(uint8_t *driver_count)
 }
 
 // Application callback invoked when XInput report is received
+// For passthrough, we send a device report for every report we receive
 void tuh_xinput_report_received_cb(uint8_t dev_addr, uint8_t instance, xinputh_interface_t const *xid_itf, uint16_t len)
 {
   (void)len; // unused
@@ -125,11 +132,7 @@ void tuh_xinput_report_received_cb(uint8_t dev_addr, uint8_t instance, xinputh_i
   {
     if (xid_itf->connected && xid_itf->new_pad_data)
     {
-      TU_LOG1("Original Buttons: Buttons %04x, LT: %02x RT: %02x, LX: %d, LY: %d, RX: %d, RY: %d\n",
-              p->wButtons, p->bLeftTrigger, p->bRightTrigger, p->sThumbLX, p->sThumbLY, p->sThumbRX, p->sThumbRY);
-
       // Create a report to send to the PC.
-      // The signed-to-unsigned axis conversion is now handled inside tud_xinput_report.
       xinput_report_t report = {0};
       report.bReportID = 0;
       report.bSize = 0x14;

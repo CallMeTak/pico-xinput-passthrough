@@ -2,7 +2,6 @@
 #include "bsp/board_api.h"
 #include "tusb.h"
 #include "xinput_device.h"
-#include "class/hid/hid.h"
 #include "device/usbd.h"
 #include "common/tusb_common.h"
 /* A combination of interfaces must have a unique product id, since PC will save device driver after the first plug. */
@@ -53,10 +52,8 @@ enum
   ITF_NUM_CDC_0 = 0,  // Interface 0 (CDC0 Comm)
   ITF_NUM_CDC_0_DATA, // Interface 1 (CDC0 Data)
   ITF_NUM_CDC_1,      // Interface 2 (CDC1 Comm)
-  ITF_NUM_CDC_1_DATA,
+  ITF_NUM_CDC_1_DATA, // Interface 3 (CDC1 Data)
   ITF_NUM_XINPUT,
-  // ITF_NUM_CDC_2,
-  // ITF_NUM_CDC_2_DATA,
   ITF_NUM_TOTAL,
 };
 
@@ -75,10 +72,11 @@ enum
 #define EPNUM_XINPUT_OUT 0x02 // out endpoint for XINPUT
 #define EPNUM_XINPUT_IN 0x82  // in endpoint for XINPUT
 
-#define EPNUM_HID_GAMEPAD_IN 0x8F // in endpoint for HID gamepad
-#define EPNUM_HID_GAMEPAD_OUT 0x0F
+// TODO: Implement passthrough as HID gamepad instead of XInput device
+// #define EPNUM_HID_GAMEPAD_IN 0x8F // in endpoint for HID gamepad
+// #define EPNUM_HID_GAMEPAD_OUT 0x0F
 
-// full speed configuration
+// device configuration descriptor
 uint8_t const desc_fs_configuration[] = {
     // Config number, interface count, string index, total length, attribute, power in mA
     TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0x00, 500),
@@ -180,7 +178,9 @@ uint16_t const *tud_descriptor_string_cb(uint8_t index, uint16_t langid)
     chr_count = board_usb_get_serial(_desc_str + 1, 32);
     break;
 
-  // Respond to Microsoft OS 1.0 string descriptor request
+    // Respond to Microsoft OS 1.0 string descriptor request
+    // Note: the 0xEE index string is a Microsoft OS 1.0 Descriptors.
+    // https://docs.microsoft.com/en-us/windows-hardware/drivers/usbcon/microsoft-defined-usb-descriptors
   case 0xEE:
     // UTF-16LE encode "MSFT100" + vendor code byte
     static uint16_t msft100_desc[9];
@@ -197,8 +197,6 @@ uint16_t const *tud_descriptor_string_cb(uint8_t index, uint16_t langid)
     return msft100_desc;
     break;
   default:
-    // Note: the 0xEE index string is a Microsoft OS 1.0 Descriptors.
-    // https://docs.microsoft.com/en-us/windows-hardware/drivers/usbcon/microsoft-defined-usb-descriptors
 
     if (!(index < sizeof(string_desc_arr) / sizeof(string_desc_arr[0])))
       return NULL;
