@@ -111,7 +111,7 @@
 #define CFG_TUD_CDC              2
 #define CFG_TUD_BOS              1
 #define CFG_TUD_VENDOR           1
-#define CFG_TUD_XINPUT
+#define CFG_TUD_XINPUT           1
 
 #define CFG_TUD_HID_EPIN_BUFSIZE    64
 #define CFG_TUD_HID_EPOUT_BUFSIZE   64
