@@ -19,23 +19,11 @@ static xinputd_interface_t xinputd_itf;
 
 bool tud_xinput_report(xinput_report_t *report)
 {
-    // Create a temporary report to hold the converted values
-    uint8_t usb_report[sizeof(xinput_report_t)] = {
-        report->bReportID,
-        report->bSize,
-        report->bmButtons,
-        (uint16_t)(report->bLeftTrigger),
-        (uint16_t)report->bRightTrigger,
-        (uint16_t)report->wThumbLeftX,
-        (uint16_t)report->wThumbLeftY,
-        (uint16_t)report->wThumbRightX,
-        (uint16_t)report->wThumbRightY,
-    }
-    ;
-    memcpy(&usb_report, report, sizeof(xinput_report_t));
-
+    // Return if fail to claim endpoint
     TU_VERIFY(usbd_edpt_claim(0, xinputd_itf.ep_in));
-    memcpy(xinputd_itf.epin_buf, &usb_report, sizeof(xinput_report_t));
+
+    // Copy the report data into the endpoint buffer
+    memcpy(xinputd_itf.epin_buf, report, sizeof(xinput_report_t));
 
     // Return if tud not ready or endpoint busy
     if (!tud_ready() || usbd_edpt_busy(0, xinputd_itf.ep_in))
@@ -43,7 +31,7 @@ bool tud_xinput_report(xinput_report_t *report)
         usbd_edpt_release(0, xinputd_itf.ep_in);
         return false;
     }
-    // The transfer is asynchronous, the endpoint will be released in the xfer_cb
+    // Queue the transfer
     return usbd_edpt_xfer(0, xinputd_itf.ep_in, xinputd_itf.epin_buf, sizeof(xinput_report_t));
 }
 
@@ -53,6 +41,7 @@ bool tud_xinput_update()
     return tud_xinput_report(&xinputd_itf.gamepad_report);
 }
 
+// May delete later. helper function to update the entire state at once
 void tud_xinput_update_state(xinput_state_t *state)
 {
     // Copy state into the local gamepad_report buffer
@@ -90,7 +79,7 @@ void tud_xinput_joystick_ry(int16_t value)
 //--------------------------------------------------------------------+
 // USBD Driver Callbacks
 //--------------------------------------------------------------------+
-static uint16_t tud_xinput_open_cb(uint8_t rhport, tusb_desc_interface_t const *itf_descriptor, uint16_t max_length)
+uint16_t tud_xinput_open_cb(uint8_t rhport, tusb_desc_interface_t const *itf_descriptor, uint16_t max_length)
 {
     // Verify that this is the XInput interface
     TU_VERIFY(itf_descriptor->bInterfaceClass == TUD_XINPUT_CLASS &&
